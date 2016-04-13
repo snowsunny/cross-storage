@@ -67,13 +67,17 @@
     }
 
     // If using a passed iframe, poll the hub for a ready message
-    if (frame) {
-      this._poll();
-    }
+    // if (frame) {
+    //   this._poll();
+    // }
 
     // Create the frame if not found or specified
-    frame = frame || this._createFrame(url);
-    this._hub = frame.contentWindow;
+    if (frame) {
+      this._hub = frame.contentWindow;
+    } else {
+      this._createFrame(url)
+    }
+
   }
 
   /**
@@ -135,6 +139,29 @@
       return v.toString(16);
     });
   };
+
+
+  CrossStorageClient.prototype.onReadyFrame = function() {
+    var client = this;
+
+    return new this._promise(function(resolve, reject) {
+      var timeout = setTimeout(function() {
+        reject(new Error('CrossStorageClient could not ready frame'));
+      }, client._timeout);
+
+      var targetOrigin = (client._origin === 'file://') ? '*' : client._origin;
+      var interval = setInterval(function() {
+        if (typeof client._hub !== "undefined" && client._hub !== null && Object.keys(client._hub).length) {
+          clearTimeout(timeout);
+          clearInterval(interval);
+          client._hub.postMessage('cross-storage:poll', targetOrigin);
+          resolve();
+        }
+      }, 100)
+
+    });
+  };
+
 
   /**
    * Returns a promise that is fulfilled when a connection has been established
@@ -364,6 +391,7 @@
    * returns {HTMLIFrameElement} The iFrame element itself
    */
   CrossStorageClient.prototype._createFrame = function(url) {
+    var client = this;
     var frame, key;
 
     frame = window.document.createElement('iframe');
@@ -375,11 +403,12 @@
         frame.style[key] = CrossStorageClient.frameStyle[key];
       }
     }
-
     window.document.body.appendChild(frame);
-    frame.src = url;
 
-    return frame;
+    frame.onload = function(){
+      client._hub = frame.contentWindow
+    }
+    frame.src = url;
   };
 
   /**
