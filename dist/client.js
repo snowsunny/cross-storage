@@ -66,18 +66,11 @@
       frame = document.getElementById(opts.frameId);
     }
 
-    // If using a passed iframe, poll the hub for a ready message
-    // if (frame) {
-    //   this._poll();
-    // }
-
-    // Create the frame if not found or specified
     if (frame) {
       this._hub = frame.contentWindow;
     } else {
-      this._createFrame(url)
+      this._hub = this._createFrame(url).contentWindow;
     }
-
   }
 
   /**
@@ -140,39 +133,6 @@
     });
   };
 
-
-  CrossStorageClient.prototype.onReadyFrame = function() {
-    var client = this;
-    var targetOrigin = (client._origin === 'file://') ? '*' : client._origin;
-
-    var interval_poll = setInterval(function() {
-      if (client._connected){
-        return clearInterval(interval_poll);
-      }
-      if (!client._hub) {
-        return;
-      }
-
-      client._hub.postMessage('cross-storage:poll', targetOrigin);
-    }, 1000);
-
-    return new this._promise(function(resolve, reject) {
-      var timeout = setTimeout(function() {
-        reject(new Error('CrossStorageClient could not ready frame'));
-      }, client._timeout);
-
-      var interval_hub = setInterval(function() {
-        if (typeof client._hub !== "undefined" && client._hub !== null && Object.keys(client._hub).length) {
-          clearTimeout(timeout);
-          clearInterval(interval_hub);
-          resolve();
-        }
-      }, 100);
-
-    });
-  };
-
-
   /**
    * Returns a promise that is fulfilled when a connection has been established
    * with the cross storage hub. Its use is required to avoid sending any
@@ -221,7 +181,7 @@
     return this._request('set', {
       key:   key,
       value: value
-    });
+    })
   };
 
   /**
@@ -234,10 +194,10 @@
    * @param   {...string} key The key to retrieve
    * @returns {Promise}   A promise that is settled on hub response or timeout
    */
-  CrossStorageClient.prototype.get = function(key) {
-    var args = Array.prototype.slice.call(arguments);
-
-    return this._request('get', {keys: args});
+  CrossStorageClient.prototype.get = function(key, callBackFn) {
+    return this._request('get', {
+      key: key
+    }).then(callBackFn);
   };
 
   /**
@@ -247,10 +207,10 @@
    * @param   {...string} key The key to delete
    * @returns {Promise}   A promise that is settled on hub response or timeout
    */
-  CrossStorageClient.prototype.del = function() {
-    var args = Array.prototype.slice.call(arguments);
-
-    return this._request('del', {keys: args});
+  CrossStorageClient.prototype.del = function(key, callBackFn) {
+    return this._request('del', {
+      key: key
+    }).then(callBackFn);
   };
 
   /**
@@ -389,6 +349,36 @@
       client._hub.postMessage('cross-storage:poll', targetOrigin);
     }, 1000);
   };
+  CrossStorageClient.prototype.onReadyFrame = function() {
+    var client = this;
+    var targetOrigin = (client._origin === 'file://') ? '*' : client._origin;
+
+    var interval_poll = setInterval(function() {
+      if (client._connected){
+        return clearInterval(interval_poll);
+      }
+      if (!client._hub) {
+        return;
+      }
+
+      client._hub.postMessage('cross-storage:poll', targetOrigin);
+    }, 1000);
+
+    return new this._promise(function(resolve, reject) {
+      var timeout = setTimeout(function() {
+        reject(new Error('CrossStorageClient could not ready frame'));
+      }, client._timeout);
+
+      var interval_hub = setInterval(function() {
+        if (typeof client._hub !== "undefined" && client._hub !== null) {
+          clearTimeout(timeout);
+          clearInterval(interval_hub);
+          resolve();
+        }
+      }, 100);
+
+    });
+  };
 
   /**
    * Creates a new iFrame containing the hub. Applies the necessary styles to
@@ -401,7 +391,6 @@
    * returns {HTMLIFrameElement} The iFrame element itself
    */
   CrossStorageClient.prototype._createFrame = function(url) {
-    var client = this;
     var frame, key;
 
     frame = window.document.createElement('iframe');
@@ -413,12 +402,11 @@
         frame.style[key] = CrossStorageClient.frameStyle[key];
       }
     }
-    window.document.body.appendChild(frame);
 
-    frame.onload = function(){
-      client._hub = frame.contentWindow
-    }
+    window.document.body.appendChild(frame);
     frame.src = url;
+
+    return frame;
   };
 
   /**
