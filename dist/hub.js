@@ -1,7 +1,7 @@
 /**
  * cross-storage - Cross domain local storage
  *
- * @version   1.0.0
+ * @version   1.1.0
  * @link      https://github.com/zendesk/cross-storage
  * @author    Daniel St. Jules <danielst.jules@gmail.com>
  * @copyright Zendesk
@@ -29,25 +29,15 @@
    * @param {array} permissions An array of objects with origin and allow
    */
   CrossStorageHub.init = function(permissions, option) {
-    var available = true;
-
-    // Return if localStorage is unavailable, or third party
-    // access is disabled
-    try {
-      if (!option) available = false;
-    } catch (e) {
-      available = false;
-    }
-
+    var available = localforage.supports(localforage.INDEXEDDB) || localforage.supports(localforage.WEBSQL) || localforage.supports(localforage.LOCALSTORAGE)
     if (!available) {
-      try {
-        return window.parent.postMessage('cross-storage:unavailable', '*');
-      } catch (e) {
-        return;
-      }
+      return window.parent.postMessage('cross-storage:unavailable', '*');
     }
 
-    localforage.config(option);
+    if(option) {
+      localforage.config(option);
+    }
+
     CrossStorageHub._permissions = permissions || [];
     CrossStorageHub._installListener();
     window.parent.postMessage('cross-storage:ready', '*');
