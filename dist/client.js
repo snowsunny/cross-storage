@@ -353,18 +353,19 @@
     var client = this;
 
     return new this._promise(function(resolve, reject) {
-      var timeout = setTimeout(function() {
-        reject(new Error('CrossStorageClient could not ready frame'));
-      }, client._timeout);
-
       var interval_hub = setInterval(function() {
-        if (typeof client._hub !== "undefined" && client._hub !== null && client._connected) {
+        if (client._hub) {
           clearTimeout(timeout);
           clearInterval(interval_hub);
+          client._poll();
           resolve();
         }
       }, 100);
 
+      var timeout = setTimeout(function() {
+        clearInterval(interval_hub)
+        reject(new Error('CrossStorageClient could not ready frame'));
+      }, client._timeout);
     });
   };
 
